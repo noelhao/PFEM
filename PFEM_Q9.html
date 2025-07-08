@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>问答游戏</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .quiz-container {
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        /* 问题和翻译使用相同的字体大小 */
+        .question,
+        .question-translation { /* 新增的类名 */
+            font-size: 1.2em; /* 与 .question 保持一致 */
+            margin-bottom: 5px;
+            color: #555;
+            line-height: 1.6;
+        }
+        .question-translation { /* 可以为翻译添加额外的样式 */
+            font-style: italic; /* 保持斜体 */
+        }
+        .options-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .option-button {
+            background-color: #e0e0e0;
+            border: none;
+            border-radius: 5px;
+            padding: 15px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            text-align: left;
+            word-wrap: break-word; /* 防止长文本溢出 */
+            white-space: normal; /* 允许文本换行 */
+        }
+        .option-button:hover {
+            background-color: #d0d0d0;
+            transform: translateY(-2px);
+        }
+        .option-button:active {
+            transform: translateY(0);
+        }
+        .option-button.correct {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .option-button.incorrect {
+            background-color: #f44336;
+            color: white;
+        }
+        .feedback {
+            font-size: 1.1em;
+            margin-top: 20px;
+            min-height: 2em; /* 确保有足够的空间显示反馈 */
+        }
+        .feedback-translation { /* 结论翻译的样式 */
+            font-size: 0.9em; /* 结论翻译可以稍微小一点 */
+            color: #999;
+            margin-top: 5px;
+            font-style: normal;
+        }
+        .controls {
+            padding-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="quiz-container">
+        <h1>PFEM Quiz Game</h1>
+        <div class="question" id="question-text"></div>
+        <div class="question-translation" id="question-translation-text"></div> <div class="options-container" id="options-container">
+            </div>
+        <div class="feedback" id="feedback-text"></div>
+        <div class="feedback-translation" id="feedback-translation-text"></div> <div class="controls">
+            </div>
+    </div>
+
+    <audio id="correct-sound" src="correct.mp3" preload="auto"></audio>
+    <audio id="wrong-sound" src="wrong.mp3" preload="auto"></audio>
+
+    <script>
+        // 定义问题、正确答案、翻译和错误答案池
+        const questions = [
+            {
+                question: "PET 的環保代碼为？",
+                translation: "Apakah Kod Kitar Semula untuk bahan PET?",
+                correctAnswer: "1",
+                wrongAnswersPool: ["0", "2", "3", "4", "5", "6"]
+            }
+        ];
+
+        let shuffledQuestions = [];
+        let score = 0;
+
+        const questionText = document.getElementById('question-text');
+        const questionTranslationText = document.getElementById('question-translation-text');
+        const optionsContainer = document.getElementById('options-container');
+        const feedbackText = document.getElementById('feedback-text');
+        const feedbackTranslationText = document.getElementById('feedback-translation-text');
+
+        // 获取音频元素
+        const correctSound = document.getElementById('correct-sound');
+        const wrongSound = document.getElementById('wrong-sound');
+
+        // 辅助函数：随机打乱数组
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+
+        // 辅助函数：从数组中随机抽取N个不重复的元素
+        function getRandomElements(arr, num) {
+            const shuffled = shuffleArray([...arr]);
+            return shuffled.slice(0, num);
+        }
+
+        // 加载问题
+        function loadQuestion() {
+            feedbackText.textContent = '';
+            feedbackTranslationText.textContent = '';
+            optionsContainer.innerHTML = '';
+            questionTranslationText.textContent = '';
+
+            shuffledQuestions = shuffleArray([...questions]);
+
+            if (shuffledQuestions.length === 0) {
+                questionText.textContent = '没有可用的问题！请添加问题。';
+                return;
+            }
+
+            const currentQuestionData = shuffledQuestions[0];
+            questionText.textContent = currentQuestionData.question;
+            questionTranslationText.textContent = currentQuestionData.translation;
+
+            const selectedWrongAnswers = getRandomElements(currentQuestionData.wrongAnswersPool, 3);
+            let allOptions = [...selectedWrongAnswers, currentQuestionData.correctAnswer];
+            allOptions = shuffleArray(allOptions);
+
+            allOptions.forEach(option => {
+                const button = document.createElement('button');
+                button.className = 'option-button';
+                button.textContent = option;
+                button.onclick = () => checkAnswer(button, option, currentQuestionData.correctAnswer);
+                optionsContainer.appendChild(button);
+            });
+        }
+
+        // 检查答案
+        function checkAnswer(selectedButton, selectedOption, correctAnswer) {
+            const allOptionButtons = optionsContainer.querySelectorAll('.option-button');
+            allOptionButtons.forEach(button => {
+                button.disabled = true; // 禁用所有按钮，防止多次点击
+            });
+
+            if (selectedOption === correctAnswer) {
+                selectedButton.classList.add('correct');
+                feedbackText.textContent = '恭喜你，回答正确！';
+                feedbackTranslationText.textContent = 'Congratulations, your answer is correct!';
+                correctSound.play(); // 播放正确音效
+                score++;
+            } else {
+                selectedButton.classList.add('incorrect');
+                feedbackText.textContent = '很遗憾，回答错误。正确答案是：' + correctAnswer;
+                feedbackTranslationText.textContent = 'Unfortunately, your answer is incorrect. The correct answer is: ' + correctAnswer;
+                wrongSound.play(); // 播放错误音效
+            }
+        }
+
+        // 初始化游戏
+        loadQuestion();
+
+    </script>
+</body>
+</html>
